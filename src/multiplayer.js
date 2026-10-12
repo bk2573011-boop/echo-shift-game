@@ -1,4 +1,5 @@
 import { io } from 'socket.io-client';
+import { getSocketUrl } from './socket-config.js';
 
 const roomCodeAlphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const roomCodePattern = new RegExp(`^[${roomCodeAlphabet}]{6}$`);
@@ -13,7 +14,11 @@ export function setupRoomLobby({ onRoomJoined = () => {} } = {}) {
   const roomPlayerCount = document.querySelector('#room-player-count');
   const copyRoomCodeButton = document.querySelector('#copy-room-code');
 
-  const socket = io({ timeout: 5000 });
+  const socketUrl = getSocketUrl({
+    isProduction: import.meta.env.PROD,
+    pageOrigin: window.location.origin,
+  });
+  const socket = io(socketUrl, { timeout: 5000 });
   let currentRoomCode = null;
   let lastRoomCode = null;
 
@@ -141,7 +146,7 @@ export function setupRoomLobby({ onRoomJoined = () => {} } = {}) {
     const httpStatus = error?.context?.status;
     const detail = httpStatus ? ` (HTTP ${httpStatus})` : error?.message ? ` (${error.message})` : '';
     showStatus(
-      `Connection failed${detail}. Check that both local servers are running; the client will keep retrying${lastRoomCode ? `; rejoin ${lastRoomCode} after reconnecting` : ''}.`,
+      `Connection failed${detail}. Check the server URL and allowed browser origin; the client will keep retrying${lastRoomCode ? `; rejoin ${lastRoomCode} after reconnecting` : ''}.`,
       'error',
     );
   });

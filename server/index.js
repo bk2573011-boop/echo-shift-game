@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Server } from 'socket.io';
+import { getAllowedSocketOrigins, isAllowedSocketRequest } from './socket-origin.js';
 
 const port = Number(process.env.PORT ?? 3001);
 const vitePort = Number(process.env.VITE_PORT ?? 5173);
@@ -75,14 +76,12 @@ const levelThreePortalZ = -11.35;
 const inputKeys = ['left', 'right', 'forward', 'backward', 'jump'];
 const rooms = new Map();
 
-const allowedOrigins = new Set([
-  ...(process.env.SOCKET_ALLOWED_ORIGINS ?? '')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean),
-  ...(isProduction && process.env.RENDER_EXTERNAL_URL ? [process.env.RENDER_EXTERNAL_URL] : []),
-  ...(!isProduction ? [`http://localhost:${vitePort}`, `http://127.0.0.1:${vitePort}`] : []),
-]);
+const allowedOrigins = getAllowedSocketOrigins({
+  isProduction,
+  socketAllowedOrigins: process.env.SOCKET_ALLOWED_ORIGINS,
+  renderExternalUrl: process.env.RENDER_EXTERNAL_URL,
+  vitePort,
+});
 
 const httpServer = createServer(async (request, response) => {
   const pathname = new URL(request.url ?? '/', 'http://localhost').pathname;
@@ -159,17 +158,15 @@ const io = new Server(httpServer, {
   // CORS alone does not protect WebSocket upgrades. Check the browser origin too.
   allowRequest: (request, callback) => {
     const origin = request.headers.origin;
-    // Same-origin polling GETs may omit Origin. Vite rewrites Host to this exact
-    // loopback address, so accept that local proxy path without opening CORS.
-    const isTrustedLocalProxy = origin === undefined
-      && request.headers.host === `127.0.0.1:${port}`;
-    const isAllowedOrigin = typeof origin === 'string' && allowedOrigins.has(origin);
-    const isAllowed = isTrustedLocalProxy || isAllowedOrigin;
+    const isAllowed = isAllowedSocketRequest({
+      origin,
+      host: request.headers.host,
+      port,
+      allowedOrigins,
+    });
 
     if (!isAllowed) {
-      console.warn(
-        `Rejected Socket.IO connection: origin=${origin ?? '(missing)'}, host=${request.headers.host ?? '(missing)'}`,
-      );
+      console.warn(`Rejected Socket.IO connection: origin=${origin ?? '(missing)'}`);
     }
 
     callback(null, isAllowed);
@@ -713,6 +710,6 @@ httpServer.listen(port, '0.0.0.0', () => {
   console.log(`ECHO SHIFT room server listening on port ${boundPort}`);
   console.log(`Allowed browser origins: ${[...allowedOrigins].join(', ') || '(none; set SOCKET_ALLOWED_ORIGINS)'}`);
   if (isProduction && allowedOrigins.size === 0) {
-    console.warn('Production Socket.IO clients will be rejected until SOCKET_ALLOWED_ORIGINS is configured.');
+    console.warn('No Socket.IO browser origins are allowed. Set SOCKET_ALLOWED_ORIGINS or verify RENDER_EXTERNAL_URL.');
   }
 });

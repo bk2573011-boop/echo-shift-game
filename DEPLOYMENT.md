@@ -12,14 +12,14 @@ The project is connected to the private GitHub repository [bk2573011-boop/echo-s
 
 ## Deploy with the Render Blueprint
 
-The repository includes `render.yaml` for a single Free Web Service. The server automatically allowlists Render's `RENDER_EXTERNAL_URL` in production, so Socket.IO's same-origin polling and WebSocket handshakes work without a guessed hostname or a manually configured secret.
+The repository includes `render.yaml` for a single Free Web Service. The production client connects to the exact origin serving the page. The server allowlists Render's `RENDER_EXTERNAL_URL` and any exact origins listed in `SOCKET_ALLOWED_ORIGINS`. If you use a custom domain, set `SOCKET_ALLOWED_ORIGINS` in the Render service to the page origin, including scheme (for example, `https://game.example.com`); comma-separate values only if you intentionally serve the game from multiple origins. Do not include a path or trailing slash.
 
 1. Push the Blueprint to the connected Git repository.
 2. Open the [Render Blueprint creation page](https://dashboard.render.com/blueprint/new?repo=https://github.com/bk2573011-boop/echo-shift-game), authorize Render's GitHub App for this private repository if prompted, and apply the Blueprint.
 3. Keep the service at one instance. Room and puzzle state is held in server memory; scaling to multiple instances would require shared Socket.IO state/adaptation before it is safe.
 4. After deployment, check `https://<service-host>/health`, open the game URL, then create and join a room from two separate browsers/devices.
 
-The Blueprint sets `NODE_ENV=production`; Render supplies `PORT` and `RENDER_EXTERNAL_URL` automatically. No application secrets or datastore are required.
+The Blueprint sets `NODE_ENV=production`; Render supplies `PORT` and `RENDER_EXTERNAL_URL` automatically. No application secrets or datastore are required. After a code push, let Render deploy the new commit. If the game uses a custom domain, verify `SOCKET_ALLOWED_ORIGINS` matches that exact domain and restart/redeploy after changing it.
 
 ## Costs and limits
 

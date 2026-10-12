@@ -9,6 +9,7 @@
     "server": "node server/index.js",
     "start": "node server/index.js",
     "build": "vite build",
+    "test:config": "node --test tests/*.test.js",
     "test:multiplayer": "node scripts/test-multiplayer.js",
     "preview": "vite preview"
   },
