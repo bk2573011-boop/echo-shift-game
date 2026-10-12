@@ -1,0 +1,23 @@
+{
+  "name": "echo-shift",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:all": "node scripts/start-dev.js",
+    "server": "node server/index.js",
+    "start": "node server/index.js",
+    "build": "vite build",
+    "test:multiplayer": "node scripts/test-multiplayer.js",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "socket.io": "^4.8.4",
+    "socket.io-client": "^4.8.4",
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "vite": "^7.1.7"
+  }
+}

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#070b12" />
+    <meta name="description" content="ECHO SHIFT: THE WORLD REMEMBERS — a 3D puzzle adventure." />
+    <title>ECHO SHIFT: THE WORLD REMEMBERS</title>
+  </head>
+  <body>
+    <main id="game" aria-label="ECHO SHIFT game scene">
+      <canvas id="game-canvas" tabindex="0" aria-label="ECHO SHIFT game controls: WASD or arrow keys to move, Space to jump, E to interact, Escape to pause"></canvas>
+      <div class="game-title" aria-hidden="true">
+        <p class="eyebrow">A WORLD OUT OF TIME</p>
+        <h1>ECHO <span>SHIFT</span></h1>
+        <p class="subtitle">THE WORLD REMEMBERS</p>
+      </div>
+      <div id="main-menu" class="main-menu" tabindex="-1" role="region" aria-label="Main menu">
+        <section class="menu-card">
+          <p class="eyebrow">A WORLD OUT OF TIME</p>
+          <h2 id="menu-title">ECHO <span>SHIFT</span></h2>
+          <p class="menu-tagline">THE WORLD REMEMBERS</p>
+          <button id="play-solo" class="room-button play-solo-button" type="button">Play Solo</button>
+          <details class="controls-guide">
+            <summary id="controls-title">CONTROLS &amp; OBJECTIVES</summary>
+            <p><kbd>W A S D</kbd> or <kbd>↑ ↓ ← →</kbd> move · <kbd>SPACE</kbd> jump · <kbd>E</kbd> interact</p>
+            <ul>
+              <li>Level 1: activate the cyan switch, cross the bridge, reach the portal.</li>
+              <li>Level 2: activate cyan then violet; the bridge lasts 15 seconds.</li>
+              <li>Level 3: resonate cyan → amber → violet to unlock the final bridge.</li>
+            </ul>
+          </details>
+          <p class="menu-audio-note">Sound settings: use the Sound toggle in the upper-left corner.</p>
+          <p class="menu-multiplayer-note">Play together: create a room or join with a six-character code.</p>
+        </section>
+        <aside class="room-panel" aria-label="Multiplayer room lobby">
+          <p class="room-panel-label">TWO-PLAYER LOBBY</p>
+          <button id="create-room" class="room-button" type="button" disabled>Create Room</button>
+          <form id="join-room-form" class="join-room-form">
+            <label class="visually-hidden" for="room-code-input">Room code</label>
+            <input
+              id="room-code-input"
+              name="roomCode"
+              type="text"
+              maxlength="6"
+              autocomplete="off"
+              autocapitalize="characters"
+              placeholder="ROOM CODE"
+              aria-label="Six-character room code"
+              disabled
+            />
+            <button class="room-button room-button--join" type="submit" disabled>Join</button>
+          </form>
+          <div id="room-details" class="room-details" hidden>
+            <span>ROOM CODE</span>
+            <strong id="room-code-label"></strong>
+            <button id="copy-room-code" class="copy-room-code" type="button" disabled>Copy</button>
+            <span id="room-player-count" class="room-player-count"></span>
+          </div>
+          <p id="room-status" class="room-status" role="status" aria-live="polite">
+            Connecting to the multiplayer server…
+          </p>
+        </aside>
+      </div>
+      <button id="audio-toggle" class="audio-toggle" type="button" aria-pressed="true">Sound: on</button>
+      <button id="pause-button" class="pause-button" type="button" aria-pressed="false" aria-keyshortcuts="Escape" title="Pause game (Escape)" hidden>Pause</button>
+      <p id="objective-hud" class="objective-hud" role="status" aria-live="polite">OBJECTIVE · Find the cyan switch</p>
+      <p id="interaction-prompt" class="interaction-prompt" role="status" hidden>
+        Press E to activate
+      </p>
+      <p class="hint" aria-hidden="true">WASD / ARROWS MOVE · SPACE JUMP · E INTERACT</p>
+      <div id="level-complete" class="completion-overlay" role="status" hidden>
+        <div class="completion-card">
+          <p id="completion-eyebrow" class="eyebrow">MEMORY RESTORED</p>
+          <h2 id="completion-title">LEVEL COMPLETE</h2>
+          <p class="subtitle">THE WORLD REMEMBERS</p>
+          <button id="continue-level" class="room-button continue-button" type="button" hidden>Enter Level 2</button>
+          <button id="replay-game" class="room-button continue-button" type="button" hidden>Play Again</button>
+        </div>
+      </div>
+      <div id="pause-menu" class="completion-overlay pause-overlay" role="dialog" aria-modal="true" aria-labelledby="pause-title" hidden>
+        <div class="completion-card pause-card">
+          <p class="eyebrow">YOUR ECHO IS SAFE</p>
+          <h2 id="pause-title">PAUSED</h2>
+          <p id="pause-status" class="subtitle">Your player is paused. Other players continue normally.</p>
+          <div class="pause-actions">
+            <button id="resume-game" class="room-button" type="button">Resume</button>
+            <button id="return-to-lobby" class="room-button" type="button">Return to Lobby</button>
+          </div>
+        </div>
+      </div>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
