@@ -8,11 +8,11 @@ This is the smallest setup because it needs one service, one public URL, and no 
 
 ## Before deploying
 
-The current project folder is not connected to a Git repository. Render's dashboard deployment flow requires a connected Git provider repository. Before anything can go online, you will need to approve creating or choosing a private GitHub repository and pushing this project to it. No repository, account, or hosting service has been created by this preparation.
+The project is connected to the private GitHub repository [bk2573011-boop/echo-shift-game](https://github.com/bk2573011-boop/echo-shift-game), on the `main` branch. Before deployment, connect Render to GitHub and grant its GitHub App access to this private repository. No Render service has been created or deployed yet.
 
 ## Render dashboard settings
 
-After the project is in a repository:
+When you are ready to deploy:
 
 1. In Render, choose **New → Web Service** and connect the ECHO SHIFT repository and branch.
 2. Choose the Node runtime and a region near the intended players.
