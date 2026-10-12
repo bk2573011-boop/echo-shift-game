@@ -8,29 +8,18 @@ This is the smallest setup because it needs one service, one public URL, and no 
 
 ## Before deploying
 
-The project is connected to the private GitHub repository [bk2573011-boop/echo-shift-game](https://github.com/bk2573011-boop/echo-shift-game), on the `main` branch. Before deployment, connect Render to GitHub and grant its GitHub App access to this private repository. No Render service has been created or deployed yet.
+The project is connected to the private GitHub repository [bk2573011-boop/echo-shift-game](https://github.com/bk2573011-boop/echo-shift-game), on the `main` branch. Render needs GitHub App access to this private repository when applying the Blueprint.
 
-## Render dashboard settings
+## Deploy with the Render Blueprint
 
-When you are ready to deploy:
+The repository includes `render.yaml` for a single Free Web Service. The server automatically allowlists Render's `RENDER_EXTERNAL_URL` in production, so Socket.IO's same-origin polling and WebSocket handshakes work without a guessed hostname or a manually configured secret.
 
-1. In Render, choose **New → Web Service** and connect the ECHO SHIFT repository and branch.
-2. Choose the Node runtime and a region near the intended players.
-3. Set **Build Command** to `npm ci --include=dev && npm run build`. Including development dependencies ensures Vite is installed even when `NODE_ENV=production` is configured for the service.
-4. Set **Start Command** to `npm start`.
-5. Set **Health Check Path** to `/health`.
-6. Configure these environment variables before creating/deploying the service:
+1. Push the Blueprint to the connected Git repository.
+2. Open the [Render Blueprint creation page](https://dashboard.render.com/blueprint/new?repo=https://github.com/bk2573011-boop/echo-shift-game), authorize Render's GitHub App for this private repository if prompted, and apply the Blueprint.
+3. Keep the service at one instance. Room and puzzle state is held in server memory; scaling to multiple instances would require shared Socket.IO state/adaptation before it is safe.
+4. After deployment, check `https://<service-host>/health`, open the game URL, then create and join a room from two separate browsers/devices.
 
-   | Variable | Value |
-   | --- | --- |
-   | `NODE_ENV` | `production` |
-   | `SOCKET_ALLOWED_ORIGINS` | The exact public origin, e.g. `https://echo-shift.onrender.com` (no path or trailing slash). Use comma-separated exact origins if using more than one domain. |
-   | `PORT` | Leave unset; Render provides the listening port. |
-
-   If Render assigns a different hostname, use that exact URL in `SOCKET_ALLOWED_ORIGINS`. This allowlist protects Socket.IO polling and WebSocket handshakes. It is server-side configuration; no secret or API key belongs in the frontend.
-
-7. Keep the service at one instance. Room and puzzle state is held in server memory; scaling to multiple instances would require shared Socket.IO state/adaptation before it is safe.
-8. After deployment, check `https://<service-host>/health`, open the game URL, then create and join a room from two separate browsers/devices.
+The Blueprint sets `NODE_ENV=production`; Render supplies `PORT` and `RENDER_EXTERNAL_URL` automatically. No application secrets or datastore are required.
 
 ## Costs and limits
 

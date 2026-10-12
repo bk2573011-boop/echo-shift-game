@@ -75,13 +75,14 @@ const levelThreePortalZ = -11.35;
 const inputKeys = ['left', 'right', 'forward', 'backward', 'jump'];
 const rooms = new Map();
 
-const allowedOrigins = new Set(
-  (process.env.SOCKET_ALLOWED_ORIGINS
-    ?? (isProduction ? '' : `http://localhost:${vitePort},http://127.0.0.1:${vitePort}`))
+const allowedOrigins = new Set([
+  ...(process.env.SOCKET_ALLOWED_ORIGINS ?? '')
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean),
-);
+  ...(isProduction && process.env.RENDER_EXTERNAL_URL ? [process.env.RENDER_EXTERNAL_URL] : []),
+  ...(!isProduction ? [`http://localhost:${vitePort}`, `http://127.0.0.1:${vitePort}`] : []),
+]);
 
 const httpServer = createServer(async (request, response) => {
   const pathname = new URL(request.url ?? '/', 'http://localhost').pathname;
