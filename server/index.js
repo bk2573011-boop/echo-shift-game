@@ -160,13 +160,13 @@ const io = new Server(httpServer, {
     const origin = request.headers.origin;
     const isAllowed = isAllowedSocketRequest({
       origin,
-      host: request.headers.host,
+      host: request.headers.host, secFetchSite: request.headers['sec-fetch-site'],
       port,
       allowedOrigins,
     });
 
     if (!isAllowed) {
-      console.warn(`Rejected Socket.IO connection: origin=${origin ?? '(missing)'}`);
+      console.warn(`Rejected Socket.IO request: method=${request.method} path=${new URL(request.url ?? '/', 'http://localhost').pathname} origin=${origin ?? '(missing)'} host=${request.headers.host ?? '(missing)'} sec-fetch-site=${request.headers['sec-fetch-site'] ?? '(missing)'}`);
     }
 
     callback(null, isAllowed);
@@ -708,7 +708,7 @@ io.on('connection', (socket) => {
 httpServer.listen(port, '0.0.0.0', () => {
   const boundPort = httpServer.address().port;
   console.log(`ECHO SHIFT room server listening on port ${boundPort}`);
-  console.log(`Allowed browser origins: ${[...allowedOrigins].join(', ') || '(none; set SOCKET_ALLOWED_ORIGINS)'}`);
+  console.log(`Allowed browser origins: ${[...allowedOrigins].join(', ') || '(none; set SOCKET_ALLOWED_ORIGINS)'}`); console.log(`Deployment config: NODE_ENV=${process.env.NODE_ENV ?? '(unset)'}, RENDER_EXTERNAL_URL=${process.env.RENDER_EXTERNAL_URL ? 'set' : 'unset'}, SOCKET_ALLOWED_ORIGINS=${process.env.SOCKET_ALLOWED_ORIGINS ? 'set' : 'unset'}`);
   if (isProduction && allowedOrigins.size === 0) {
     console.warn('No Socket.IO browser origins are allowed. Set SOCKET_ALLOWED_ORIGINS or verify RENDER_EXTERNAL_URL.');
   }
