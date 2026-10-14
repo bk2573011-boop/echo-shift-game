@@ -39,18 +39,18 @@ export function setupRoomLobby({ onRoomJoined = () => {} } = {}) {
     currentRoomCode = response.roomCode;
     lastRoomCode = response.roomCode;
     roomCodeLabel.textContent = response.roomCode;
-    roomPlayerCount.textContent = `${response.playerCount}/2 players`;
+    roomPlayerCount.textContent = `${response.playerCount}/${response.maxPlayers ?? 8} players`;
     roomDetails.hidden = false;
     updateButtons();
 
     if (action === 'create') {
       showStatus(
-        'Room created. Share the code with one player. Player movement, the bridge, and level completion are shared.',
+        'Room created. Share the code with up to seven players. Movement, puzzles, and level completion are shared.',
         'success',
       );
     } else {
       showStatus(
-        `Joined as player ${response.playerSlot}. Player movement, the bridge, and level completion are shared.`,
+        `Joined as player ${response.playerSlot}. Movement, puzzles, and level completion are shared.`,
         'success',
       );
     }
@@ -60,7 +60,7 @@ export function setupRoomLobby({ onRoomJoined = () => {} } = {}) {
     const messages = {
       'invalid-code': 'Enter a valid 6-character room code.',
       'room-not-found': `No open room matches ${attemptedCode}. Check the code and try again.`,
-      'room-full': 'That room is full. Each room can hold two players.',
+      'room-full': 'Room full. Each room can hold up to 8 players.',
       'already-in-room': 'This browser is already in a room. Refresh to leave it.',
       'rate-limited': 'Too many room requests. Wait a moment and try again.',
     };
@@ -120,7 +120,7 @@ export function setupRoomLobby({ onRoomJoined = () => {} } = {}) {
 
     try {
       await navigator.clipboard.writeText(lastRoomCode);
-      showStatus(`Room code ${lastRoomCode} copied. Share it with one player.`, 'success');
+      showStatus(`Room code ${lastRoomCode} copied. Share it with up to seven players.`, 'success');
     } catch {
       showStatus('Could not access the clipboard. Select the room code and copy it manually.', 'error');
     }
@@ -170,10 +170,10 @@ export function setupRoomLobby({ onRoomJoined = () => {} } = {}) {
     if (!summary || summary.roomCode !== currentRoomCode) return;
 
     roomPlayerCount.textContent = `${summary.playerCount}/${summary.maxPlayers} players`;
-    if (summary.playerCount === 2) {
-      showStatus('Both players joined. Movement, the bridge, and level completion are shared.', 'success');
+    if (summary.playerCount === summary.maxPlayers) {
+      showStatus('Room full. All 8 players are connected.', 'success');
     } else {
-      showStatus('The other player disconnected. Waiting for someone to rejoin.', 'info');
+      showStatus(`${summary.playerCount}/${summary.maxPlayers} players connected. Share the room code to invite more.`, 'info');
     }
   });
 

@@ -240,11 +240,41 @@ async function runTests() {
   const thirdClient = await connectClient('Third client');
   const invalidCode = await request(thirdClient, 'room:join', { roomCode: '!!!!!!' });
   assert.equal(invalidCode.code, 'invalid-code');
-  const fullRoom = await request(thirdClient, 'room:join', { roomCode: created.roomCode });
-  assert.equal(fullRoom.code, 'room-full');
   const otherRoom = await request(thirdClient, 'room:create', null);
   assert.equal(otherRoom.ok, true);
-  report('invalid code and third-player join are rejected; a separate room can be created');
+  assert.equal(otherRoom.maxPlayers, 8);
+  const duplicateCreate = await request(thirdClient, 'room:create', null);
+  assert.equal(duplicateCreate.code, 'already-in-room');
+  const roomMembers = [thirdClient];
+  const roomSlots = [otherRoom.playerSlot];
+  for (let index = 2; index <= 8; index += 1) {
+    const member = await connectClient(`Capacity player ${index}`);
+    const response = await request(member, 'room:join', { roomCode: otherRoom.roomCode });
+    assert.equal(response.ok, true);
+    assert.equal(response.playerCount, index);
+    assert.equal(response.maxPlayers, 8);
+    roomMembers.push(member);
+    roomSlots.push(response.playerSlot);
+  }
+  assert.deepEqual([...roomSlots].sort(), [1, 2, 3, 4, 5, 6, 7, 8]);
+  const duplicateJoin = await request(roomMembers[1], 'room:join', { roomCode: otherRoom.roomCode });
+  assert.equal(duplicateJoin.code, 'already-in-room');
+  const ninthClient = await connectClient('Ninth player');
+  const ninthJoin = await request(ninthClient, 'room:join', { roomCode: otherRoom.roomCode });
+  assert.equal(ninthJoin.ok, false);
+  assert.equal(ninthJoin.code, 'room-full');
+  const leavingSummary = waitFor(thirdClient, 'room:players',
+    (summary) => summary.roomCode === otherRoom.roomCode && summary.playerCount === 7,
+    'capacity room leave membership update');
+  const capacityLeave = await request(roomMembers[7], 'room:leave');
+  assert.equal(capacityLeave.ok, true);
+  assert.equal(capacityLeave.playerCount, 7);
+  await leavingSummary;
+  const replacementJoin = await request(ninthClient, 'room:join', { roomCode: otherRoom.roomCode });
+  assert.equal(replacementJoin.ok, true);
+  assert.equal(replacementJoin.playerCount, 8);
+  report('room creation, duplicate requests, 8-player capacity, ninth-player rejection, and leave slot reuse');
+  report('invalid code is rejected and an independent room can be created');
 
   // Server-derived positions and facing directions are shared with both clients.
   const movementPredicate = (state) => {

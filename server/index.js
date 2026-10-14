@@ -22,7 +22,15 @@ const contentTypes = {
 };
 const roomCodeAlphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const roomCodeLength = 6;
-const maxPlayersPerRoom = 2;
+const maxPlayersPerRoom = 8;
+const startingPositions = [
+  [0.95, 1.05], [-0.95, 1.05], [0.95, -0.35], [-0.95, -0.35],
+  [0.42, 1.32], [-0.42, 1.32], [0.42, -1.32], [-0.42, -1.32],
+];
+const levelSpawnOffsets = [
+  [-0.42, 0], [0.42, 0], [-0.42, -0.35], [0.42, -0.35],
+  [-0.14, 0.8], [0.14, 0.8], [-0.14, -0.75], [0.14, -0.75],
+];
 const maxRoomActionsPerMinute = 10;
 const maxMovementUpdatesPerSecond = 60;
 const playerHeight = 1.25;
@@ -259,12 +267,13 @@ function getRoomState(room) {
 }
 
 function createPlayer(slot, socketId) {
+  const [x, z] = startingPositions[slot - 1];
   return {
     socketId,
     slot,
-    x: slot === 1 ? 0.95 : -0.95,
+    x,
     y: groundCenterY,
-    z: 1.05,
+    z,
     rotationY: 0,
     verticalVelocity: 0,
     jumpRequested: false,
@@ -276,9 +285,10 @@ function createPlayer(slot, socketId) {
 
 function movePlayerToLevel(player, level) {
   const levelSpawn = level === 3 ? levelThreeSpawn : level === 2 ? levelTwoSpawn : null;
+  const [offsetX, offsetZ] = levelSpawnOffsets[player.slot - 1];
   const spawn = levelSpawn
-    ? { ...levelSpawn, x: levelSpawn.x + (player.slot === 1 ? -0.42 : 0.42) }
-    : { x: player.slot === 1 ? 0.95 : -0.95, y: groundCenterY, z: 1.05 };
+    ? { ...levelSpawn, x: levelSpawn.x + offsetX, z: levelSpawn.z + offsetZ }
+    : { x: startingPositions[player.slot - 1][0], y: groundCenterY, z: startingPositions[player.slot - 1][1] };
   player.x = spawn.x;
   player.y = spawn.y;
   player.z = spawn.z;
@@ -388,7 +398,8 @@ setInterval(() => {
 
 function addPlayerToRoom(socket, roomCode, room) {
   const usedSlots = new Set(room.players.map((player) => player.slot));
-  const slot = [1, 2].find((candidate) => !usedSlots.has(candidate));
+  const slot = Array.from({ length: maxPlayersPerRoom }, (_, index) => index + 1)
+    .find((candidate) => !usedSlots.has(candidate));
 
   const player = createPlayer(slot, socket.id);
   movePlayerToLevel(player, room.activeLevel);
@@ -450,6 +461,7 @@ io.on('connection', (socket) => {
       roomCode,
       playerSlot,
       playerCount: room.players.length,
+      maxPlayers: maxPlayersPerRoom,
       ...getRoomState(room),
     });
   });
@@ -496,6 +508,7 @@ io.on('connection', (socket) => {
       roomCode,
       playerSlot,
       playerCount: room.players.length,
+      maxPlayers: maxPlayersPerRoom,
       ...getRoomState(room),
     });
   });

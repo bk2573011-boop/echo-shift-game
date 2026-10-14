@@ -28,7 +28,7 @@ const {
   camera,
   crystal,
   player,
-  remotePlayer,
+  remotePlayers,
   cameraOffset,
   platformTop,
   platformRadius,
@@ -79,7 +79,6 @@ const groundCenterY = platformTop + playerHeight / 2;
 const cameraTarget = new Vector3();
 const desiredCameraPosition = new Vector3();
 const authoritativePosition = new Vector3();
-const remoteTargetPosition = new Vector3();
 const movementKeys = new Set([
   'KeyW', 'KeyA', 'KeyS', 'KeyD',
   'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight',
@@ -104,7 +103,6 @@ let pauseStartedAt = 0;
 let wasMultiplayerSession = false;
 let playerSlot = 1;
 let hasAuthoritativePosition = false;
-let remoteTargetRotation = 0;
 let wasMoving = false;
 let lastObjective = '';
 let multiplayer;
@@ -154,7 +152,7 @@ function openMainMenu() {
   completionMessage.hidden = true;
   continueLevelButton.hidden = true;
   replayButton.hidden = true;
-  remotePlayer.visible = false;
+  remotePlayers.forEach((avatar) => { avatar.visible = false; });
   wasMultiplayerSession = false;
   // The lobby is part of the title screen while the menu is open.
   mainMenu.append(roomPanel);
@@ -359,13 +357,16 @@ function applyRoomState(state) {
     hasAuthoritativePosition = true;
   }
 
-  const otherPlayer = state.players?.find((roomPlayer) => roomPlayer.slot !== playerSlot);
-  if (otherPlayer) {
-    remoteTargetPosition.set(otherPlayer.x, otherPlayer.y, otherPlayer.z);
-    remoteTargetRotation = otherPlayer.rotationY;
-    remotePlayer.visible = true;
-  } else {
-    remotePlayer.visible = false;
+  const remoteBySlot = new Map(remotePlayers.map((avatar, index) => [index + 1, avatar]));
+  remotePlayers.forEach((avatar) => { avatar.visible = false; });
+  for (const roomPlayer of state.players ?? []) {
+    if (roomPlayer.slot === playerSlot) continue;
+    const avatar = remoteBySlot.get(roomPlayer.slot);
+    if (!avatar) continue;
+    avatar.userData.targetPosition ??= new Vector3();
+    avatar.userData.targetPosition.set(roomPlayer.x, roomPlayer.y, roomPlayer.z);
+    avatar.userData.targetRotation = roomPlayer.rotationY;
+    avatar.visible = true;
   }
 }
 
@@ -387,7 +388,7 @@ multiplayer = setupRoomLobby({
 multiplayer.socket.on('room:state', applyRoomState);
 multiplayer.socket.on('disconnect', () => {
   hasAuthoritativePosition = false;
-  remotePlayer.visible = false;
+  remotePlayers.forEach((avatar) => { avatar.visible = false; });
   if (wasMultiplayerSession && gameStarted) {
     gamePaused = true;
     clearMovementInput();
@@ -402,7 +403,7 @@ multiplayer.socket.on('disconnect', () => {
 playSoloButton.addEventListener('click', () => {
   if (multiplayer.currentRoomCode) return;
   wasMultiplayerSession = false;
-  remotePlayer.visible = false;
+  remotePlayers.forEach((avatar) => { avatar.visible = false; });
   setActiveLevel(1, true);
   startGameplay();
 });
@@ -768,15 +769,15 @@ function animate() {
   if (hasAuthoritativePosition && multiplayer.currentRoomCode) {
     player.position.lerp(authoritativePosition, 1 - Math.exp(-14 * delta));
   }
-  if (remotePlayer.visible) {
-    remotePlayer.position.lerp(remoteTargetPosition, 1 - Math.exp(-12 * delta));
-    // Follow the shortest turn so the remote avatar does not snap when it turns.
+  remotePlayers.forEach((avatar) => {
+    if (!avatar.visible || !avatar.userData.targetPosition) return;
+    avatar.position.lerp(avatar.userData.targetPosition, 1 - Math.exp(-12 * delta));
     const rotationDifference = Math.atan2(
-      Math.sin(remoteTargetRotation - remotePlayer.rotation.y),
-      Math.cos(remoteTargetRotation - remotePlayer.rotation.y),
+      Math.sin(avatar.userData.targetRotation - avatar.rotation.y),
+      Math.cos(avatar.userData.targetRotation - avatar.rotation.y),
     );
-    remotePlayer.rotation.y += rotationDifference * (1 - Math.exp(-12 * delta));
-  }
+    avatar.rotation.y += rotationDifference * (1 - Math.exp(-12 * delta));
+  });
 
   // Keep the camera's original angle and distance, but move it smoothly with the player.
   const followSmoothing = 1 - Math.exp(-4 * delta);

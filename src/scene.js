@@ -463,6 +463,15 @@ export function createEchoScene(canvas) {
   remotePlayer.children[0].material = new THREE.MeshBasicMaterial({ color: '#b4ffff' });
   remotePlayer.visible = false;
   scene.add(remotePlayer);
+  const remotePlayers = [remotePlayer];
+  for (let slot = 2; slot <= 8; slot += 1) {
+    const avatar = remotePlayer.clone();
+    avatar.material = remotePlayer.material.clone();
+    avatar.children[0].material = remotePlayer.children[0].material.clone();
+    avatar.visible = false;
+    scene.add(avatar);
+    remotePlayers.push(avatar);
+  }
 
   return {
     renderer,
@@ -471,6 +480,7 @@ export function createEchoScene(canvas) {
     crystal,
     player,
     remotePlayer,
+    remotePlayers,
     cameraOffset,
     platformTop,
     platformRadius: 1.86,
