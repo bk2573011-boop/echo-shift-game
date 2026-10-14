@@ -3,7 +3,8 @@ import test from 'node:test';
 import { getAllowedSocketOrigins, isAllowedSocketRequest } from '../server/socket-origin.js';
 import { getSocketUrl } from '../src/socket-config.js';
 
-test('production allows the Render URL and explicitly configured custom domains only', () => {
+
+test('production allows configured origins and same-origin requests without Origin only for an allowed host', () => {
   const allowedOrigins = getAllowedSocketOrigins({
     isProduction: true,
     renderExternalUrl: 'https://echo-shift.onrender.com/',
@@ -31,8 +32,30 @@ test('production allows the Render URL and explicitly configured custom domains 
     host: 'echo-shift.onrender.com',
     port: 3000,
     allowedOrigins,
+    secFetchSite: 'same-origin',
+  }), true);
+  assert.equal(isAllowedSocketRequest({
+    origin: undefined,
+    host: 'untrusted.example.com',
+    port: 3000,
+    allowedOrigins,
+    secFetchSite: 'same-origin',
+  }), false);
+  assert.equal(isAllowedSocketRequest({
+    origin: undefined,
+    host: 'echo-shift.onrender.com',
+    port: 3000,
+    allowedOrigins,
+    secFetchSite: 'cross-site',
+  }), false);
+  assert.equal(isAllowedSocketRequest({
+    origin: undefined,
+    host: 'echo-shift.onrender.com',
+    port: 3000,
+    allowedOrigins,
   }), false);
 });
+
 
 test('development allows Vite localhost origins and its no-Origin proxy path', () => {
   const allowedOrigins = getAllowedSocketOrigins({ isProduction: false, vitePort: 5173 });
@@ -51,6 +74,7 @@ test('development allows Vite localhost origins and its no-Origin proxy path', (
     allowedOrigins,
   }), false);
 });
+
 
 test('client uses the deployed page origin in production and Vite proxy in development', () => {
   assert.equal(getSocketUrl({
