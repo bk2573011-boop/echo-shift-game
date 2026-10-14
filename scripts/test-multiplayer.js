@@ -97,6 +97,9 @@ function connectClient(label) {
     forceNew: true,
     reconnection: false,
     timeout: 5000,
+    ...(process.env.ECHO_SHIFT_URL
+      ? { extraHeaders: { Origin: new URL(serverUrl).origin } }
+      : {}),
   });
   clients.push(socket);
 
