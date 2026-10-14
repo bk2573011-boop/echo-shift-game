@@ -15,6 +15,7 @@ function parseOrigins(value = '') {
     .filter(Boolean);
 }
 
+
 export function getAllowedSocketOrigins({
   isProduction,
   socketAllowedOrigins = '',
@@ -29,8 +30,23 @@ export function getAllowedSocketOrigins({
   return new Set(origins);
 }
 
-export function isAllowedSocketRequest({ origin, host, port, allowedOrigins }) {
+
+export function isAllowedSocketRequest({ origin, host, port, allowedOrigins, secFetchSite }) {
+  if (typeof origin === 'string') return allowedOrigins.has(origin);
+  if (origin !== undefined) return false;
+
+  // Same-origin GET polling can omit Origin. Require the browser's Fetch Metadata
+  // signal and an exact host match against an explicitly allowed website origin.
+  if (secFetchSite === 'same-origin') {
+    for (const allowedOrigin of allowedOrigins) {
+      try {
+        if (new URL(allowedOrigin).host === host) return true;
+      } catch {
+        // Ignore malformed allow-list entries.
+      }
+    }
+  }
+
   // Vite's local proxy can omit Origin and rewrites Host to this loopback address.
-  if (origin === undefined && host === `127.0.0.1:${port}`) return true;
-  return typeof origin === 'string' && allowedOrigins.has(origin);
+  return host === `127.0.0.1:${port}`;
 }
