@@ -172,6 +172,8 @@ export function setupRoomLobby({ onRoomJoined = () => {} } = {}) {
     roomPlayerCount.textContent = `${summary.playerCount}/${summary.maxPlayers} players`;
     if (summary.playerCount === summary.maxPlayers) {
       showStatus('Room full. All 8 players are connected.', 'success');
+    } else if (summary.playerCount > 1) {
+      showStatus(`${summary.playerCount} players connected. More can join with the room code.`, 'success');
     } else {
       showStatus(`${summary.playerCount}/${summary.maxPlayers} players connected. Share the room code to invite more.`, 'info');
     }

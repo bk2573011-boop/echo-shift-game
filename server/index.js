@@ -23,14 +23,6 @@ const contentTypes = {
 const roomCodeAlphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const roomCodeLength = 6;
 const maxPlayersPerRoom = 8;
-const startingPositions = [
-  [0.95, 1.05], [-0.95, 1.05], [0.95, -0.35], [-0.95, -0.35],
-  [0.42, 1.32], [-0.42, 1.32], [0.42, -1.32], [-0.42, -1.32],
-];
-const levelSpawnOffsets = [
-  [-0.42, 0], [0.42, 0], [-0.42, -0.35], [0.42, -0.35],
-  [-0.14, 0.8], [0.14, 0.8], [-0.14, -0.75], [0.14, -0.75],
-];
 const maxRoomActionsPerMinute = 10;
 const maxMovementUpdatesPerSecond = 60;
 const playerHeight = 1.25;
@@ -267,13 +259,11 @@ function getRoomState(room) {
 }
 
 function createPlayer(slot, socketId) {
-  const [x, z] = startingPositions[slot - 1];
+  const spawn = getPlayerSpawn(slot, 1);
   return {
     socketId,
     slot,
-    x,
-    y: groundCenterY,
-    z,
+    ...spawn,
     rotationY: 0,
     verticalVelocity: 0,
     jumpRequested: false,
@@ -283,12 +273,22 @@ function createPlayer(slot, socketId) {
   };
 }
 
-function movePlayerToLevel(player, level) {
+function getPlayerSpawn(slot, level) {
   const levelSpawn = level === 3 ? levelThreeSpawn : level === 2 ? levelTwoSpawn : null;
-  const [offsetX, offsetZ] = levelSpawnOffsets[player.slot - 1];
-  const spawn = levelSpawn
-    ? { ...levelSpawn, x: levelSpawn.x + offsetX, z: levelSpawn.z + offsetZ }
-    : { x: startingPositions[player.slot - 1][0], y: groundCenterY, z: startingPositions[player.slot - 1][1] };
+  const radius = levelSpawn ? 0.75 : 1.05;
+  const angle = ((slot - 1) / maxPlayersPerRoom) * Math.PI * 2
+    + (levelSpawn ? -Math.PI / 2 - Math.PI / 16 : 0);
+  const centerX = levelSpawn?.x ?? 0;
+  const centerZ = levelSpawn?.z ?? 0;
+  return {
+    x: centerX + Math.cos(angle) * radius,
+    y: groundCenterY,
+    z: centerZ + Math.sin(angle) * radius,
+  };
+}
+
+function movePlayerToLevel(player, level) {
+  const spawn = getPlayerSpawn(player.slot, level);
   player.x = spawn.x;
   player.y = spawn.y;
   player.z = spawn.z;

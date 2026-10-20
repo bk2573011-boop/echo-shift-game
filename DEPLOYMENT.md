@@ -17,9 +17,17 @@ The repository includes `render.yaml` for a single Free Web Service. The product
 1. Push the Blueprint to the connected Git repository.
 2. Open the [Render Blueprint creation page](https://dashboard.render.com/blueprint/new?repo=https://github.com/bk2573011-boop/echo-shift-game), authorize Render's GitHub App for this private repository if prompted, and apply the Blueprint.
 3. Keep the service at one instance. Room and puzzle state is held in server memory; scaling to multiple instances would require shared Socket.IO state/adaptation before it is safe.
-4. After deployment, check `https://<service-host>/health`, open the game URL, then create and join a room from two separate browsers/devices.
+4. After deployment, check `https://<service-host>/health`, open the game URL, then create a room and join from up to eight separate browsers/devices.
 
 The Blueprint sets `NODE_ENV=production`; Render supplies `PORT` and `RENDER_EXTERNAL_URL` automatically. No application secrets or datastore are required. After a code push, let Render deploy the new commit. If the game uses a custom domain, verify `SOCKET_ALLOWED_ORIGINS` matches that exact domain and restart/redeploy after changing it.
+
+## Authentication and room access
+
+This release has no user accounts, passwords, bearer tokens, or per-user identity. A six-character room code is the admission secret for a room; anyone who obtains it can attempt to join while a seat is available. Codes use cryptographically generated characters from an alphabet that omits ambiguous symbols. The server rejects malformed or nonexistent codes, limits room create/join attempts per socket, and permits **2–8 players per room**. Each player receives a unique slot and a separated spawn position on the current level's starting platform. Players continue to collide with level geometry under the existing server simulation; player avatars do not block one another.
+
+Gameplay events are authorized using server-side socket membership and the player record linked to that socket. Puzzle actions also check pause state, server-simulated position, puzzle sequence/prerequisites, and room state; clients cannot submit coordinates or claim completion directly. Origin allowlisting restricts browser origins but is not user authentication. A disconnect removes that socket's player from the room; reconnecting does not restore identity automatically, and the player must manually rejoin with the room code. Room progress remains in memory only while at least one player remains connected and is lost when the last player leaves or the server restarts.
+
+Required production configuration is `NODE_ENV=production`, the platform-provided `PORT`, and a correct public origin through `RENDER_EXTERNAL_URL` or `SOCKET_ALLOWED_ORIGINS`. For a custom domain, configure `SOCKET_ALLOWED_ORIGINS` as the exact origin (scheme and hostname, no path or trailing slash). There are no application credentials or secret values to provision. Run a single server instance because room state is process-local.
 
 ## Costs and limits
 

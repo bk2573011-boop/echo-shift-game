@@ -154,6 +154,27 @@ function playerAt(state, slot) {
   return state.players.find((player) => player.slot === slot);
 }
 
+function assertSeparatedSpawns(players) {
+  for (let first = 0; first < players.length; first += 1) {
+    for (let second = first + 1; second < players.length; second += 1) {
+      const a = players[first];
+      const b = players[second];
+      assert.ok(Math.hypot(a.x - b.x, a.z - b.z) > 0.56, 'spawn capsules must not overlap');
+    }
+  }
+}
+
+function expectedSpawn(slot, level) {
+  const radius = level === 1 ? 1.05 : 0.75;
+  const angle = ((slot - 1) / 8) * Math.PI * 2
+    + (level === 1 ? 0 : -Math.PI / 2 - Math.PI / 16);
+  const centerX = level === 1 ? 0 : level === 2 ? 24 : 48;
+  return {
+    x: centerX + Math.cos(angle) * radius,
+    z: 0.45 + Math.sin(angle) * radius,
+  };
+}
+
 function sendInput(socket, changes = {}) {
   socket.emit('player:input', {
     left: false,
@@ -179,6 +200,11 @@ async function moveToZ(socket, roomCode, slot, targetZ, label, timeoutMs = 8000)
 }
 
 async function jumpForwardToZ(socket, roomCode, slot, targetZ, label, timeoutMs = 8000) {
+  let lastPlayer;
+  const captureState = (state) => {
+    if (state.roomCode === roomCode) lastPlayer = playerAt(state, slot);
+  };
+  socket.on('room:state', captureState);
   const landed = waitFor(
     socket,
     'room:state',
@@ -191,7 +217,13 @@ async function jumpForwardToZ(socket, roomCode, slot, targetZ, label, timeoutMs 
   sendInput(socket, { forward: true, jump: true });
   await new Promise((resolve) => setTimeout(resolve, 100));
   sendInput(socket, { forward: true });
-  await landed;
+  try {
+    await landed;
+  } catch (error) {
+    throw new Error(`${error.message}; last position: ${JSON.stringify(lastPlayer)}`);
+  } finally {
+    socket.off('room:state', captureState);
+  }
   sendInput(socket);
 }
 
@@ -216,39 +248,69 @@ async function waitUntilConnected(socket) {
 }
 
 async function runTests() {
+  // Unauthorized gameplay actions and malformed room requests must be rejected.
+  const unauthorizedClient = await connectClient('Unauthorized client');
+  for (const [eventName, payload] of [
+    ['puzzle:activate-switch', { switchIndex: 0 }],
+    ['puzzle:complete-level', undefined],
+    ['puzzle:advance-level', undefined],
+  ]) {
+    const response = await request(unauthorizedClient, eventName, payload);
+    assert.equal(response.ok, false, `${eventName} should require room membership`);
+    assert.equal(response.code, 'not-in-room');
+  }
+  for (const payload of [null, [], { roomCode: 123 }, { roomCode: '!!!!!!' }]) {
+    const response = await request(unauthorizedClient, 'room:join', payload);
+    assert.equal(response.ok, false);
+    assert.equal(response.code, 'invalid-code');
+  }
+  unauthorizedClient.emit('player:input', { left: true, x: 10000 });
+  unauthorizedClient.emit('player:set-paused', { paused: true });
+  report('unjoined sockets cannot trigger gameplay actions; malformed join and control payloads are rejected or ignored');
+
   // Room creation and joining.
   const playerOne = await connectClient('Player 1');
   const created = await request(playerOne, 'room:create', null);
   assert.equal(created.ok, true);
+  assert.equal(created.maxPlayers, 8);
   assert.match(created.roomCode, new RegExp(`^[${roomCodeAlphabet}]{6}$`));
   assert.equal(created.playerCount, 1);
 
   const playerTwo = await connectClient('Player 2');
-  const bothPlayersSummary = waitFor(
-    playerOne,
-    'room:players',
-    (summary) => summary.roomCode === created.roomCode && summary.playerCount === 2,
-    'two-player room summary',
-  );
   const joined = await request(playerTwo, 'room:join', { roomCode: created.roomCode.toLowerCase() });
   assert.equal(joined.ok, true);
   assert.equal(joined.playerCount, 2);
-  await bothPlayersSummary;
-  report('two players join one room and both receive 2/2 membership');
+
+  const roomMembers = [playerOne, playerTwo];
+  let latestJoin = joined;
+  for (let index = 3; index <= 8; index += 1) {
+    const client = await connectClient(`Player ${index}`);
+    roomMembers.push(client);
+    latestJoin = await request(client, 'room:join', { roomCode: created.roomCode });
+    assert.equal(latestJoin.ok, true);
+    assert.equal(latestJoin.playerCount, index);
+  }
+  assert.equal(latestJoin.maxPlayers, 8);
+  assert.deepEqual(latestJoin.players.map((player) => player.slot).sort((a, b) => a - b),
+    [1, 2, 3, 4, 5, 6, 7, 8]);
+  assertSeparatedSpawns(latestJoin.players);
+  report('all eight players join with unique slots and separated spawn positions');
   const prematureAdvance = await request(playerOne, 'puzzle:advance-level');
   assert.equal(prematureAdvance.code, 'level-not-complete');
   report('Level 2 transition is rejected until Level 1 is complete');
 
   // Invalid code, capacity, and room isolation.
-  const thirdClient = await connectClient('Third client');
+  const thirdClient = await connectClient('Ninth client');
   const invalidCode = await request(thirdClient, 'room:join', { roomCode: '!!!!!!' });
   assert.equal(invalidCode.code, 'invalid-code');
+  const fullMainRoom = await request(thirdClient, 'room:join', { roomCode: created.roomCode });
+  assert.equal(fullMainRoom.code, 'room-full');
   const otherRoom = await request(thirdClient, 'room:create', null);
   assert.equal(otherRoom.ok, true);
   assert.equal(otherRoom.maxPlayers, 8);
   const duplicateCreate = await request(thirdClient, 'room:create', null);
   assert.equal(duplicateCreate.code, 'already-in-room');
-  const roomMembers = [thirdClient];
+  const capacityMembers = [thirdClient];
   const roomSlots = [otherRoom.playerSlot];
   for (let index = 2; index <= 8; index += 1) {
     const member = await connectClient(`Capacity player ${index}`);
@@ -256,11 +318,11 @@ async function runTests() {
     assert.equal(response.ok, true);
     assert.equal(response.playerCount, index);
     assert.equal(response.maxPlayers, 8);
-    roomMembers.push(member);
+    capacityMembers.push(member);
     roomSlots.push(response.playerSlot);
   }
   assert.deepEqual([...roomSlots].sort(), [1, 2, 3, 4, 5, 6, 7, 8]);
-  const duplicateJoin = await request(roomMembers[1], 'room:join', { roomCode: otherRoom.roomCode });
+  const duplicateJoin = await request(capacityMembers[1], 'room:join', { roomCode: otherRoom.roomCode });
   assert.equal(duplicateJoin.code, 'already-in-room');
   const ninthClient = await connectClient('Ninth player');
   const ninthJoin = await request(ninthClient, 'room:join', { roomCode: otherRoom.roomCode });
@@ -269,7 +331,7 @@ async function runTests() {
   const leavingSummary = waitFor(thirdClient, 'room:players',
     (summary) => summary.roomCode === otherRoom.roomCode && summary.playerCount === 7,
     'capacity room leave membership update');
-  const capacityLeave = await request(roomMembers[7], 'room:leave');
+  const capacityLeave = await request(capacityMembers[7], 'room:leave');
   assert.equal(capacityLeave.ok, true);
   assert.equal(capacityLeave.playerCount, 7);
   await leavingSummary;
@@ -281,7 +343,7 @@ async function runTests() {
 
   // Server-derived positions and facing directions are shared with both clients.
   const movementPredicate = (state) => {
-    if (state.roomCode !== created.roomCode || state.players.length !== 2) return false;
+    if (state.roomCode !== created.roomCode || state.players.length !== 8) return false;
     return playerAt(state, 1).x < 0.8 && playerAt(state, 2).x > -0.8;
   };
   const movementForOne = waitFor(playerOne, 'room:state', movementPredicate, 'Player 1 movement');
@@ -492,6 +554,8 @@ async function runTests() {
   assert.equal(rejectedDuplicateAdvance.code, 'level-not-complete');
   assert.equal(advanced.activeLevel, 2);
   const [nextStateOne, nextStateTwo] = await Promise.all([levelTwoForOne, levelTwoForTwo]);
+  assertSeparatedSpawns(nextStateOne.players);
+  assertSeparatedSpawns(nextStateTwo.players);
   assert.deepEqual(nextStateOne.levelTwoSwitches, [false, false]);
   assert.deepEqual(nextStateTwo.levelTwoSwitches, [false, false]);
   const otherRoomLevel = await waitFor(
@@ -521,7 +585,8 @@ async function runTests() {
     playerTwo,
     'room:state',
     (state) => state.roomCode === created.roomCode
-      && Math.abs(playerAt(state, 2).z - 0.45) < 0.01
+      && Math.abs(playerAt(state, 2).z - expectedSpawn(2, 2).z) < 0.01
+      && Math.abs(playerAt(state, 2).x - expectedSpawn(2, 2).x) < 0.01
       && Math.abs(playerAt(state, 2).y - 0.6) < 0.02,
     'Level 2 fall recovery without a bridge',
     6000,
@@ -604,7 +669,8 @@ async function runTests() {
     playerOne,
     'room:state',
     (state) => state.roomCode === created.roomCode
-      && Math.abs(playerAt(state, 1).z - 0.45) < 0.01
+      && Math.abs(playerAt(state, 1).z - expectedSpawn(1, 2).z) < 0.01
+      && Math.abs(playerAt(state, 1).x - expectedSpawn(1, 2).x) < 0.01
       && Math.abs(playerAt(state, 1).y - 0.6) < 0.02,
     'respawn after expired bridge crossing attempt',
     6000,
@@ -665,6 +731,8 @@ async function runTests() {
   assert.equal(advancedToThree.ok, true);
   assert.equal(advancedToThree.activeLevel, 3);
   const [stateThreeOne, stateThreeTwo] = await Promise.all([levelThreeForOne, levelThreeForTwo]);
+  assertSeparatedSpawns(stateThreeOne.players);
+  assertSeparatedSpawns(stateThreeTwo.players);
   assert.equal(stateThreeOne.levelThreeProgress, 0);
   assert.equal(stateThreeTwo.levelThreeBridgeActivated, false);
   assert.equal(otherRoomLevel.activeLevel, 1);
@@ -672,7 +740,8 @@ async function runTests() {
   await new Promise((resolve) => setTimeout(resolve, 300));
   const pausedAcrossTransition = await waitFor(
     playerTwo, 'room:state', (state) => state.roomCode === created.roomCode
-      && Math.abs(playerAt(state, 2).z - 0.45) < 0.01,
+      && Math.abs(playerAt(state, 2).z - expectedSpawn(2, 3).z) < 0.01
+      && Math.abs(playerAt(state, 2).x - expectedSpawn(2, 3).x) < 0.01,
     'paused Player 2 remains paused after the room changes levels',
   );
   assert.equal(pausedAcrossTransition.activeLevel, 3);
@@ -700,7 +769,8 @@ async function runTests() {
     playerTwo,
     'room:state',
     (state) => state.roomCode === created.roomCode
-      && Math.abs(playerAt(state, 2).z - 0.45) < 0.01
+      && Math.abs(playerAt(state, 2).z - expectedSpawn(2, 3).z) < 0.01
+      && Math.abs(playerAt(state, 2).x - expectedSpawn(2, 3).x) < 0.01
       && Math.abs(playerAt(state, 2).y - 0.6) < 0.02,
     'Level 3 fall recovery without the resonant bridge',
     6000,
@@ -797,7 +867,7 @@ async function runTests() {
   const onePlayerSummary = waitFor(
     playerOne,
     'room:players',
-    (summary) => summary.roomCode === created.roomCode && summary.playerCount === 1,
+    (summary) => summary.roomCode === created.roomCode && summary.playerCount === 7,
     'disconnect membership update',
   );
   playerTwo.disconnect();
@@ -806,7 +876,7 @@ async function runTests() {
   await waitUntilConnected(playerTwo);
   const rejoined = await request(playerTwo, 'room:join', { roomCode: created.roomCode });
   assert.equal(rejoined.ok, true);
-  assert.equal(rejoined.playerCount, 2);
+  assert.equal(rejoined.playerCount, 8);
   assert.equal(rejoined.activeLevel, 3);
   assert.equal(rejoined.levelComplete, true);
   assert.deepEqual(rejoined.levelTwoSwitches, [false, false]);
@@ -817,12 +887,12 @@ async function runTests() {
   const onePlayerAfterLeave = waitFor(
     playerOne,
     'room:players',
-    (summary) => summary.roomCode === created.roomCode && summary.playerCount === 1,
+    (summary) => summary.roomCode === created.roomCode && summary.playerCount === 7,
     'membership after explicit room leave',
   );
   const leftRoom = await request(playerTwo, 'room:leave');
   assert.equal(leftRoom.ok, true);
-  assert.equal(leftRoom.playerCount, 1);
+  assert.equal(leftRoom.playerCount, 7);
   await onePlayerAfterLeave;
   const rejoinedAfterLeave = await request(playerTwo, 'room:join', { roomCode: created.roomCode });
   assert.equal(rejoinedAfterLeave.ok, true);

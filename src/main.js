@@ -404,6 +404,7 @@ playSoloButton.addEventListener('click', () => {
   if (multiplayer.currentRoomCode) return;
   wasMultiplayerSession = false;
   remotePlayers.forEach((avatar) => { avatar.visible = false; });
+  remotePlayers.forEach((avatar) => { avatar.visible = false; });
   setActiveLevel(1, true);
   startGameplay();
 });

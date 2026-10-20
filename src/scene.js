@@ -451,27 +451,22 @@ export function createEchoScene(canvas) {
   visor.position.set(0, 0.2, 0.25);
   player.add(visor);
 
-  // A differently colored copy represents the other person in a multiplayer room.
-  const remotePlayer = player.clone();
-  remotePlayer.material = new THREE.MeshStandardMaterial({
-    color: '#54dfff',
-    emissive: '#087f9b',
-    emissiveIntensity: 0.85,
-    metalness: 0.38,
-    roughness: 0.28,
+  // Each remote slot gets its own mesh so every room member is visible.
+  const remoteColors = ['#54dfff', '#ffb86b', '#bc91ff', '#80ed99', '#ff7b9c', '#ffe66d', '#79a7ff', '#ff9f6e'];
+  const remotePlayers = remoteColors.map((color) => {
+    const remotePlayer = player.clone();
+    remotePlayer.material = new THREE.MeshStandardMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: 0.42,
+      metalness: 0.38,
+      roughness: 0.28,
+    });
+    remotePlayer.children[0].material = new THREE.MeshBasicMaterial({ color: '#e9ffff' });
+    remotePlayer.visible = false;
+    scene.add(remotePlayer);
+    return remotePlayer;
   });
-  remotePlayer.children[0].material = new THREE.MeshBasicMaterial({ color: '#b4ffff' });
-  remotePlayer.visible = false;
-  scene.add(remotePlayer);
-  const remotePlayers = [remotePlayer];
-  for (let slot = 2; slot <= 8; slot += 1) {
-    const avatar = remotePlayer.clone();
-    avatar.material = remotePlayer.material.clone();
-    avatar.children[0].material = remotePlayer.children[0].material.clone();
-    avatar.visible = false;
-    scene.add(avatar);
-    remotePlayers.push(avatar);
-  }
 
   return {
     renderer,
@@ -479,7 +474,6 @@ export function createEchoScene(canvas) {
     camera,
     crystal,
     player,
-    remotePlayer,
     remotePlayers,
     cameraOffset,
     platformTop,
